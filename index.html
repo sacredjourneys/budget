@@ -223,13 +223,23 @@
       }).join("");
       if(k==="hard"||k==="subs"||k==="life"||k==="one"||k==="inc"){
         const label = k==="inc" ? "Total in" : k==="one" ? "One-off total" : "Subtotal";
-        el.insertAdjacentHTML("beforeend", `<div class="totalbar"><span>${label}</span><b>${fUSD(sumUSD)}</b></div>`);
+        el.insertAdjacentHTML("beforeend", `<div class="totalbar"><span>${label}</span><b id="sub-${k}">${fUSD(sumUSD)}</b></div>`);
       }
     });
     if(!which) renderTotals();
   }
 
+  function updateSubtotals(){
+    ["hard","subs","life","one","inc"].forEach(k => {
+      const el = document.getElementById("sub-"+k);
+      if(!el) return;
+      const total = S[k].reduce((t,it)=>t+usd(it.a,it.c),0);
+      el.textContent = fUSD(total);
+    });
+  }
+
   function renderTotals(){
+    updateSubtotals();
     const sum = k => S[k].reduce((t,it)=>t+usd(it.a,it.c),0);
     const burn = sum("hard")+sum("subs")+sum("life");
     const rec = S.inc.filter(i=>i.rec).reduce((t,it)=>t+usd(it.a,it.c),0);
@@ -278,7 +288,7 @@
 
   function esc(s){ return String(s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 
-  document.addEventListener("input", e => {
+  function onEdit(e){
     const t = e.target;
     if(t.id==="rUSD"||t.id==="rCAD"){
       S.rates.usd = parseFloat(rUSD.value)||18.6; S.rates.cad = parseFloat(rCAD.value)||13.2;
@@ -289,7 +299,9 @@
       if(t.classList.contains("amt")){ S[g][i].a = parseFloat(t.value)||0; save(); renderTotals(); }
       if(t.classList.contains("cur")){ S[g][i].c = t.value; save(); render(g); renderTotals(); }
     }
-  });
+  }
+  document.addEventListener("input", onEdit);
+  document.addEventListener("change", onEdit);
 
   reset.addEventListener("click", () => {
     if(!confirm("Reset every number back to your original figures?")) return;
