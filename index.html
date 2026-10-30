@@ -74,13 +74,14 @@
 <body>
 <div class="wrap">
   <header>
-    <div class="kick">Co-founder file</div>
+    <div class="kick">Co-founder file &middot; v3</div>
     <h1>Your money, live.</h1>
     <div class="sub">Tap any number and change it. Totals update as you type. Everything saves on your phone.</div>
     <div class="rates">
       <label class="rate">1 USD = <input id="rUSD" type="number" step="0.1" value="18.6"> MXN</label>
       <label class="rate">1 CAD = <input id="rCAD" type="number" step="0.1" value="13.2"> MXN</label>
     </div>
+  <div id="err" style="display:none;background:#3a1512;border:1px solid #e2685f;color:#ffb3ab;border-radius:10px;padding:10px 12px;font-size:12.5px;margin-top:12px"></div>
   </header>
 
   <div class="tiles">
@@ -145,8 +146,10 @@
 
 <script>
 (function(){
-  const KEY = "trev_budget_v1";
-  const DEFAULTS = {
+  "use strict";
+  var VERSION = 3;
+  var KEY = "trev_budget_v3";
+  var DEFAULTS = {
     rates: { usd: 18.6, cad: 13.2 },
     hard: [
       { n:"Rent (incl cleaning, gas, maintenance)", a:17500, c:"MXN" },
@@ -185,133 +188,201 @@
       { n:"Retreat debt owed (end Nov)", a:2000, c:"USD" }
     ]
   };
-  let S = load();
-  const gEls = { hard:gHard, subs:gSubs, life:gLife, one:gOne, inc:gInc, goal:gGoal };
+  var GROUPS = ["hard","subs","life","one","inc","goal"];
+  var S = load();
 
+  function $(id){ return document.getElementById(id); }
   function load(){
-    try{
-      const raw = localStorage.getItem(KEY);
+    try {
+      var raw = localStorage.getItem(KEY);
       if(!raw) return JSON.parse(JSON.stringify(DEFAULTS));
-      const p = JSON.parse(raw);
-      return { rates:{...DEFAULTS.rates,...(p.rates||{})}, hard:p.hard||DEFAULTS.hard, subs:p.subs||DEFAULTS.subs,
-        life:p.life||DEFAULTS.life, one:p.one||DEFAULTS.one, inc:p.inc||DEFAULTS.inc, goal:p.goal||DEFAULTS.goal };
-    }catch(e){ return JSON.parse(JSON.stringify(DEFAULTS)); }
+      var p = JSON.parse(raw);
+      var out = JSON.parse(JSON.stringify(DEFAULTS));
+      if(p.rates){ out.rates.usd = Number(p.rates.usd) || DEFAULTS.rates.usd; out.rates.cad = Number(p.rates.cad) || DEFAULTS.rates.cad; }
+      for(var gi=0; gi<GROUPS.length; gi++){ var k = GROUPS[gi]; if(Array.isArray(p[k]) && p[k].length === DEFAULTS[k].length){ out[k] = p[k]; } }
+      return out;
+    } catch(e){ return JSON.parse(JSON.stringify(DEFAULTS)); }
   }
-  function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }
+  function save(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){} }
 
-  const mxn = (a,c) => c==="MXN" ? a : c==="USD" ? a*S.rates.usd : a*S.rates.cad;
-  const usd = (a,c) => mxn(a,c)/S.rates.usd;
-  const fmt = (a,c) => (c==="MXN"?"MX$":c==="USD"?"$":"C$") + Number(a).toLocaleString("en-CA",{maximumFractionDigits:0});
-  const fUSD = v => "$" + Math.round(v).toLocaleString("en-CA");
-  const fMXN = v => "MX$" + Math.round(v).toLocaleString("en-CA");
+  function mxn(a,c){ a = Number(a)||0; return c==="MXN" ? a : c==="USD" ? a*S.rates.usd : a*S.rates.cad; }
+  function usd(a,c){ return mxn(a,c)/S.rates.usd; }
+  function fUSD(v){ return "$" + Math.round(Number(v)||0).toLocaleString("en-CA"); }
+  function fMXN(v){ return "MX$" + Math.round(Number(v)||0).toLocaleString("en-CA"); }
+  function sumGroup(k){ var t=0; for(var i=0;i<S[k].length;i++){ t += usd(S[k][i].a, S[k][i].c); } return t; }
+  function esc(x){ return String(x).replace(/[&<>"]/g, function(c){ return ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[c]; }); }
 
-  function render(which){
-    const lists = which ? [which] : Object.keys(gEls);
-    lists.forEach(k => {
-      const el = gEls[k]; if(!el) return;
-      const data = S[k];
-      let sumUSD = 0;
-      el.innerHTML = data.map((it,i) => {
-        sumUSD += usd(it.a,it.c);
-        const conv = it.c==="MXN" ? fUSD(usd(it.a,it.c)) : fMXN(mxn(it.a,it.c));
-        const sel = ["MXN","USD","CAD"].map(c=>`<option value="${c}" ${it.c===c?"selected":""}>${c}</option>`).join("");
-        return `<div class="row">
-          <div class="nm">${esc(it.n)}<span class="conv">${conv}</span></div>
-          <input class="amt" type="number" inputmode="decimal" step="1" value="${it.a}" data-g="${k}" data-i="${i}">
-          <select data-g="${k}" data-i="${i}" class="cur">${sel}</select>
-        </div>`;
-      }).join("");
-      if(k==="hard"||k==="subs"||k==="life"||k==="one"||k==="inc"){
-        const label = k==="inc" ? "Total in" : k==="one" ? "One-off total" : "Subtotal";
-        el.insertAdjacentHTML("beforeend", `<div class="totalbar"><span>${label}</span><b id="sub-${k}">${fUSD(sumUSD)}</b></div>`);
-      }
-    });
-    if(!which) renderTotals();
+  function renderGroup(k){
+    var el = $(k==="hard"?"gHard":k==="subs"?"gSubs":k==="life"?"gLife":k==="one"?"gOne":k==="inc"?"gInc":"gGoal");
+    if(!el) return;
+    var html = "";
+    for(var i=0;i<S[k].length;i++){
+      var it = S[k][i];
+      var conv = it.c==="MXN" ? fUSD(usd(it.a,it.c)) : fMXN(mxn(it.a,it.c));
+      var sel = "";
+      var curs = ["MXN","USD","CAD"];
+      for(var ci=0;ci<curs.length;ci++){ sel += '<option value="'+curs[ci]+'"'+(it.c===curs[ci]?' selected':'')+'>'+curs[ci]+'</option>'; }
+      html += '<div class="row">' +
+        '<div class="nm">'+esc(it.n)+'<span class="conv">'+conv+'</span></div>' +
+        '<input class="amt" type="text" inputmode="decimal" value="'+it.a+'" data-g="'+k+'" data-i="'+i+'">' +
+        '<select class="cur" data-g="'+k+'" data-i="'+i+'">'+sel+'</select>' +
+        '</div>';
+    }
+    if(k==="hard"||k==="subs"||k==="life"||k==="one"||k==="inc"){
+      var label = k==="inc" ? "Total in" : k==="one" ? "One-off total" : "Subtotal";
+      html += '<div class="totalbar"><span>'+label+'</span><b id="sub-'+k+'">'+fUSD(sumGroup(k))+'</b></div>';
+    }
+    el.innerHTML = html;
+  }
+  function renderAll(){ for(var i=0;i<GROUPS.length;i++){ renderGroup(GROUPS[i]); } }
+
+  // read every visible field into state, then draw
+  function pull(){
+    var ins = document.querySelectorAll("input.amt");
+    for(var i=0;i<ins.length;i++){
+      var inp = ins[i], k = inp.getAttribute("data-g"), idx = Number(inp.getAttribute("data-i"));
+      if(!k || !S[k] || !S[k][idx]) continue;
+      var v = parseFloat(String(inp.value).replace(/[^0-9.\-]/g,""));
+      S[k][idx].a = isNaN(v) ? 0 : v;
+    }
+    var sels = document.querySelectorAll("select.cur");
+    for(var j=0;j<sels.length;j++){
+      var se = sels[j], k2 = se.getAttribute("data-g"), i2 = Number(se.getAttribute("data-i"));
+      if(!k2 || !S[k2] || !S[k2][i2]) continue;
+      if(se.value !== S[k2][i2].c){ S[k2][i2].c = se.value; }
+    }
+    var ru = parseFloat($("rUSD").value); if(!isNaN(ru) && ru > 0) S.rates.usd = ru;
+    var rc = parseFloat($("rCAD").value); if(!isNaN(rc) && rc > 0) S.rates.cad = rc;
   }
 
-  function updateSubtotals(){
-    ["hard","subs","life","one","inc"].forEach(k => {
-      const el = document.getElementById("sub-"+k);
-      if(!el) return;
-      const total = S[k].reduce((t,it)=>t+usd(it.a,it.c),0);
-      el.textContent = fUSD(total);
-    });
-  }
+  function draw(){
+    var burn = sumGroup("hard") + sumGroup("subs") + sumGroup("life");
+    var rec = 0;
+    for(var i=0;i<S.inc.length;i++){ if(S.inc[i].rec) rec += usd(S.inc[i].a, S.inc[i].c); }
+    var target = usd(S.goal[0].a, S.goal[0].c);
+    var buildP = usd(S.goal[1].a, S.goal[1].c) || 1;
+    var gap = Math.max(0, burn - rec);
+    var builds = Math.ceil(gap / buildP);
 
-  function renderTotals(){
-    updateSubtotals();
-    const sum = k => S[k].reduce((t,it)=>t+usd(it.a,it.c),0);
-    const burn = sum("hard")+sum("subs")+sum("life");
-    const rec = S.inc.filter(i=>i.rec).reduce((t,it)=>t+usd(it.a,it.c),0);
-    const target = usd(S.goal[0].a, S.goal[0].c);
-    const buildP = usd(S.goal[1].a, S.goal[1].c) || 1;
-    const gap = Math.max(0, burn - rec);
-    const builds = Math.ceil(gap / buildP);
+    // tile + subtotal text
+    $("tBurn").textContent = fUSD(burn);
+    $("tBurnMxn").textContent = fMXN(burn * S.rates.usd);
+    $("tRec").textContent = fUSD(rec);
+    $("tRecMxn").textContent = fMXN(rec * S.rates.usd);
+    $("tGap").textContent = fUSD(gap);
+    $("tGapMxn").textContent = fMXN(gap * S.rates.usd);
+    $("tBuilds").textContent = String(builds);
+    $("tBuildNote").textContent = "at " + fUSD(buildP) + " a build";
 
-    tBurn.textContent = fUSD(burn); tBurnMxn.textContent = fMXN(burn*S.rates.usd);
-    tRec.textContent = fUSD(rec); tRecMxn.textContent = fMXN(rec*S.rates.usd);
-    tGap.textContent = fUSD(gap); tGapMxn.textContent = fMXN(gap*S.rates.usd);
-    tBuilds.textContent = builds; tBuildNote.textContent = "at " + fUSD(buildP) + " a build";
+    var subKeys = ["hard","subs","life","one","inc"];
+    for(var s1=0;s1<subKeys.length;s1++){
+      var el = $("sub-" + subKeys[s1]);
+      if(el) el.textContent = fUSD(sumGroup(subKeys[s1]));
+    }
 
-    const max = Math.max(burn, target, 1);
-    barBurn.style.width = (burn/max*100) + "%";
-    barTgt.style.width = (target/max*100) + "%";
-    barBurn.style.opacity = .95; barTgt.style.opacity = .55;
-    lgBurn.textContent = "Burn " + fUSD(burn);
-    lgTgt.textContent = "Target " + fUSD(target);
+    // per-row conversion line under each name
+    var rows = document.querySelectorAll(".row");
+    for(var r=0;r<rows.length;r++){
+      var inp = rows[r].querySelector("input.amt");
+      if(!inp) continue;
+      var k3 = inp.getAttribute("data-g"), i3 = Number(inp.getAttribute("data-i"));
+      if(!k3 || !S[k3] || !S[k3][i3]) continue;
+      var it3 = S[k3][i3];
+      var convEl = rows[r].querySelector(".conv");
+      if(convEl) convEl.textContent = it3.c==="MXN" ? fUSD(usd(it3.a,it3.c)) : fMXN(mxn(it3.a,it3.c));
+    }
+
+    var max = Math.max(burn, target, 1);
+    $("barBurn").style.width = (burn/max*100) + "%";
+    $("barTgt").style.width = (target/max*100) + "%";
+    $("lgBurn").textContent = "Burn " + fUSD(burn);
+    $("lgTgt").textContent = "Target " + fUSD(target);
 
     // timeline
-    const cash = usd(S.goal[2].a, S.goal[2].c);
-    const debt = usd(S.goal[3].a, S.goal[3].c);
-    const oneTimes = S.inc.filter(i=>!i.rec);
-    const contract = oneTimes.find(i=>/contract/i.test(i.n));
-    const retreat = oneTimes.find(i=>/retreat/i.test(i.n));
-    const rows = [];
-    rows.push({ d:"Today", t:"Cash on hand", v:cash, pos:true });
-    rows.push({ d:"Nov 1", t:"Rent due", v:-usd(S.hard[0].a, S.hard[0].c), pos:false });
-    if(contract) rows.push({ d:"Early Nov", t:"Website contract lands", v:usd(contract.a,contract.c), pos:true });
-    rows.push({ d:"All Nov", t:"Rest of monthly burn (food, utilities, transport, life, subs)", v:-(burn - usd(S.hard[0].a, S.hard[0].c)), pos:false });
-    rows.push({ d:"All Nov", t:"One-offs (battery, oil)", v:-sum("one"), pos:false });
-    if(retreat) rows.push({ d:"End Nov", t:"Retreat profit lands", v:usd(retreat.a,retreat.c), pos:true });
-    rows.push({ d:"End Nov", t:"Retreat debt paid", v:-debt, pos:false });
-    const end = rows.reduce((t,r)=>t+r.v,0);
-    tl.innerHTML = rows.map(r=>`<div class="it"><div>${esc(r.t)}<span class="d">${r.d}</span></div>
-      <div class="v ${r.pos?"pos":"neg"}">${r.v>=0?"+":"−"}${fUSD(Math.abs(r.v))}</div></div>`).join("")
-      + `<div class="it"><div><b>End of November</b><span class="d">if every line above holds</span></div>
-         <div class="v ${end>=0?"pos":"neg"}"><b>${end>=0?"+":"−"}${fUSD(Math.abs(end))}</b></div></div>`;
-
-    const decGap = Math.max(0, burn - rec + debt*0);
-    verdict.innerHTML = end >= 0
-      ? `<b>November works if two things happen:</b> the contract invoice is paid early in the month, and the retreat debt is paid from retreat profit, not from cash you need to live. December then needs <b>${fUSD(decGap)}</b> of new work, which is <b>${builds} build${builds===1?"":"s"}</b>.`
-      : `<b>November is short.</b> As it stands you end the month <b>${fUSD(Math.abs(end))}</b> under. The fixes: invoice the contract first, move the retreat debt into December, and trim the life lines. Every change up there moves this number live.`;
-  }
-
-  function esc(s){ return String(s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
-
-  function onEdit(e){
-    const t = e.target;
-    if(t.id==="rUSD"||t.id==="rCAD"){
-      S.rates.usd = parseFloat(rUSD.value)||18.6; S.rates.cad = parseFloat(rCAD.value)||13.2;
-      save(); render(); return;
+    var cash = usd(S.goal[2].a, S.goal[2].c);
+    var debt = usd(S.goal[3].a, S.goal[3].c);
+    var contract = null, retreat = null;
+    for(var q=0;q<S.inc.length;q++){
+      var it4 = S.inc[q];
+      if(it4.rec) continue;
+      if(/contract/i.test(it4.n)) contract = it4;
+      if(/retreat/i.test(it4.n)) retreat = it4;
     }
-    const g = t.dataset.g, i = t.dataset.i;
-    if(g && i !== undefined){
-      if(t.classList.contains("amt")){ S[g][i].a = parseFloat(t.value)||0; save(); renderTotals(); }
-      if(t.classList.contains("cur")){ S[g][i].c = t.value; save(); render(g); renderTotals(); }
+    var rent = usd(S.hard[0].a, S.hard[0].c);
+    var rowsT = [];
+    rowsT.push({ d:"Today", t:"Cash on hand", v:cash, pos:true });
+    rowsT.push({ d:"Nov 1", t:"Rent due", v:-rent, pos:false });
+    if(contract) rowsT.push({ d:"Early Nov", t:"Website contract lands", v:usd(contract.a,contract.c), pos:true });
+    rowsT.push({ d:"All Nov", t:"Rest of the month (food, utilities, transport, life, subs)", v:-(burn - rent), pos:false });
+    rowsT.push({ d:"All Nov", t:"One-offs (battery, oil)", v:-sumGroup("one"), pos:false });
+    if(retreat) rowsT.push({ d:"End Nov", t:"Retreat profit lands", v:usd(retreat.a,retreat.c), pos:true });
+    rowsT.push({ d:"End Nov", t:"Retreat debt paid", v:-debt, pos:false });
+    var end = 0;
+    for(var z=0;z<rowsT.length;z++) end += rowsT[z].v;
+    var tHtml = "";
+    for(var y=0;y<rowsT.length;y++){
+      var rr = rowsT[y];
+      tHtml += '<div class="it"><div>' + esc(rr.t) + '<span class="d">' + rr.d + '</span></div><div class="v ' + (rr.pos?"pos":"neg") + '">' + (rr.v>=0?"+":"\u2212") + fUSD(Math.abs(rr.v)) + '</div></div>';
+    }
+    tHtml += '<div class="it"><div><b>End of November</b><span class="d">if every line above holds</span></div><div class="v ' + (end>=0?"pos":"neg") + '"><b>' + (end>=0?"+":"\u2212") + fUSD(Math.abs(end)) + '</b></div></div>';
+    $("tl").innerHTML = tHtml;
+
+    var vEl = $("verdict");
+    if(end >= 0){
+      vEl.innerHTML = "<b>November works as it stands.</b> You end the month " + fUSD(end) + " up. December then needs <b>" + fUSD(gap) + "</b> of new work, which is <b>" + builds + " build" + (builds===1?"":"s") + "</b>.";
+    } else {
+      vEl.innerHTML = "<b>November is short by " + fUSD(Math.abs(end)) + ".</b> Every change up there moves this number live. The three levers: move the retreat debt into December (worth " + fUSD(debt) + "), trim the life lines, or land one more build.";
     }
   }
-  document.addEventListener("input", onEdit);
-  document.addEventListener("change", onEdit);
 
-  reset.addEventListener("click", () => {
-    if(!confirm("Reset every number back to your original figures?")) return;
-    S = JSON.parse(JSON.stringify(DEFAULTS)); save();
-    rUSD.value = S.rates.usd; rCAD.value = S.rates.cad;
-    render();
+  function recalc(){ pull(); save(); draw(); }
+
+  // events: every plausible one, plus a timer that catches anything the browser swallows
+  document.addEventListener("input", recalc, true);
+  document.addEventListener("change", recalc, true);
+  document.addEventListener("keyup", recalc, true);
+  document.addEventListener("keydown", recalc, true);
+  document.addEventListener("click", recalc, true);
+  document.addEventListener("touchend", function(){ setTimeout(recalc, 60); }, true);
+  document.addEventListener("paste", function(){ setTimeout(recalc, 60); }, true);
+  document.addEventListener("blur", recalc, true);
+
+  var lastSig = "";
+  function sig(){
+    var parts = [S.rates.usd, S.rates.cad];
+    var ins = document.querySelectorAll("input.amt");
+    for(var i=0;i<ins.length;i++) parts.push(ins[i].value);
+    var ss = document.querySelectorAll("select.cur");
+    for(var j=0;j<ss.length;j++) parts.push(ss[j].value);
+    parts.push($("rUSD").value); parts.push($("rCAD").value);
+    return parts.join("|");
+  }
+  setInterval(function(){
+    var now = sig();
+    if(now !== lastSig){ lastSig = now; pull(); save(); draw(); }
+  }, 400);
+
+  // visible diagnostics instead of silent failure
+  window.addEventListener("error", function(e){
+    var b = $("err");
+    if(b){ b.style.display = "block"; b.textContent = "Script error: " + (e.message || "unknown") + " (v" + VERSION + ")"; }
   });
 
-  rUSD.value = S.rates.usd; rCAD.value = S.rates.cad;
-  render();
+  // reset
+  var rBtn = $("reset");
+  if(rBtn) rBtn.addEventListener("click", function(){
+    if(!confirm("Reset every number back to your original figures?")) return;
+    S = JSON.parse(JSON.stringify(DEFAULTS)); save();
+    $("rUSD").value = S.rates.usd; $("rCAD").value = S.rates.cad;
+    renderAll(); draw(); lastSig = sig();
+  });
+
+  // boot
+  $("rUSD").value = S.rates.usd;
+  $("rCAD").value = S.rates.cad;
+  renderAll();
+  draw();
+  lastSig = sig();
 })();
 </script>
 </body>
