@@ -69,6 +69,27 @@
   .note b{color:var(--txt)}
   footer{margin-top:30px;color:var(--dim);font-size:11.5px;text-align:center}
   .reset{background:none;border:1px solid var(--line);color:var(--dim);border-radius:8px;padding:7px 12px;font-size:12px;margin-top:16px}
+
+  /* ---- actual vs budget ---- */
+  .actuals{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .hm{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:var(--line)}
+  .hm>div{background:var(--panel);padding:12px 10px}
+  .hm .lab{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);font-weight:700}
+  .hm .val{font-size:18px;font-weight:700;margin-top:5px;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  .hm .alt{font-size:10.5px;color:var(--mut);margin-top:1px;font-variant-numeric:tabular-nums}
+  .arow{padding:10px 12px;border-top:1px solid var(--line)}
+  .arow .top{display:flex;justify-content:space-between;gap:10px;align-items:baseline;font-size:13.5px}
+  .arow .nums{font-variant-numeric:tabular-nums;color:var(--mut);font-size:12px;white-space:nowrap}
+  .arow .nums b{color:var(--txt)}
+  .pbar{height:6px;border-radius:99px;background:var(--panel2);overflow:hidden;margin-top:7px}
+  .pbar i{display:block;height:100%;background:var(--gold)}
+  .pbar i.over{background:var(--red)}
+  .empty{color:var(--dim);font-size:12.5px;padding:14px 12px;line-height:1.5}
+  .pill{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.04em;border-radius:99px;padding:2px 8px;margin-left:6px;vertical-align:1px}
+  .pill.ok{background:rgba(95,191,130,.15);color:var(--green)}
+  .pill.warn{background:rgba(232,182,76,.15);color:var(--gold)}
+  .pill.bad{background:rgba(226,104,95,.15);color:var(--red)}
+  .ref{background:none;border:1px solid var(--line);color:var(--mut);border-radius:8px;padding:5px 10px;font-size:11.5px;margin-left:6px}
 </style>
 </head>
 <body>
@@ -90,6 +111,13 @@
     <div class="tile red"><div class="lab">Gap to cover</div><div class="val" id="tGap">$0</div><div class="alt" id="tGapMxn">MX$0</div></div>
     <div class="tile blue"><div class="lab">Builds needed / mo</div><div class="val" id="tBuilds">0</div><div class="alt" id="tBuildNote">at $2,000 a build</div></div>
   </div>
+
+  <section>
+    <h2 id="aTitle">This month, for real</h2>
+    <p class="hint">Your logged spending against the plan below. Send receipts any time. <button class="ref" id="aRef">Refresh</button></p>
+    <div class="actuals" id="aBox"><div class="empty">Loading your spending...</div></div>
+    <div class="note" id="aNote" style="display:none"></div>
+  </section>
 
   <section>
     <h2>Burn vs target</h2>
@@ -147,34 +175,34 @@
 <script>
 (function(){
   "use strict";
-  var VERSION = 3;
+  var VERSION = 4;
   var KEY = "trev_budget_v3";
   var DEFAULTS = {
     rates: { usd: 18.6, cad: 13.2 },
     hard: [
-      { n:"Rent (incl cleaning, gas, maintenance)", a:17500, c:"MXN" },
-      { n:"Electricity", a:1000, c:"MXN" },
-      { n:"Phone", a:300, c:"MXN" },
-      { n:"Car rental", a:7000, c:"MXN" },
-      { n:"Moto gas, around town", a:500, c:"MXN" },
-      { n:"Food", a:500, c:"CAD" }
+      { cat:"Rent", n:"Rent (incl cleaning, gas, maintenance)", a:17500, c:"MXN" },
+      { cat:"Utilities", n:"Electricity", a:1000, c:"MXN" },
+      { cat:"Utilities", n:"Phone", a:300, c:"MXN" },
+      { cat:"Transport", n:"Car rental", a:7000, c:"MXN" },
+      { cat:"Transport", n:"Moto gas, around town", a:500, c:"MXN" },
+      { cat:"Groceries", n:"Food", a:500, c:"CAD" }
     ],
     subs: [
-      { n:"Claude Pro", a:20, c:"USD" },
-      { n:"Base44", a:50, c:"USD" },
-      { n:"Higgsfield", a:50, c:"USD" },
-      { n:"Spotify", a:23, c:"CAD" },
-      { n:"iCloud", a:15, c:"CAD" },
-      { n:"Google Storage", a:4, c:"CAD" }
+      { cat:"Subscriptions", n:"Claude Pro", a:20, c:"USD" },
+      { cat:"Subscriptions", n:"Base44", a:50, c:"USD" },
+      { cat:"Subscriptions", n:"Higgsfield", a:50, c:"USD" },
+      { cat:"Subscriptions", n:"Spotify", a:23, c:"CAD" },
+      { cat:"Subscriptions", n:"iCloud", a:15, c:"CAD" },
+      { cat:"Subscriptions", n:"Google Storage", a:4, c:"CAD" }
     ],
     life: [
-      { n:"Eating out, gym, activities", a:200, c:"USD" },
-      { n:"Samira (dates, mountain gas)", a:500, c:"USD" },
-      { n:"Moto maintenance", a:400, c:"MXN" }
+      { cat:"Eating out", n:"Eating out, gym, activities", a:200, c:"USD" },
+      { cat:"Dating", n:"Samira (dates, mountain gas)", a:500, c:"USD" },
+      { cat:"Transport", n:"Moto maintenance", a:400, c:"MXN" }
     ],
     one: [
-      { n:"Moto battery", a:1000, c:"MXN" },
-      { n:"Oil change", a:300, c:"MXN" }
+      { cat:"Transport", n:"Moto battery", a:1000, c:"MXN" },
+      { cat:"Transport", n:"Oil change", a:300, c:"MXN" }
     ],
     inc: [
       { n:"Website contract (dad's cabinets)", a:1800, c:"CAD", rec:false },
@@ -199,7 +227,15 @@
       var p = JSON.parse(raw);
       var out = JSON.parse(JSON.stringify(DEFAULTS));
       if(p.rates){ out.rates.usd = Number(p.rates.usd) || DEFAULTS.rates.usd; out.rates.cad = Number(p.rates.cad) || DEFAULTS.rates.cad; }
-      for(var gi=0; gi<GROUPS.length; gi++){ var k = GROUPS[gi]; if(Array.isArray(p[k]) && p[k].length === DEFAULTS[k].length){ out[k] = p[k]; } }
+      for(var gi=0; gi<GROUPS.length; gi++){
+        var k = GROUPS[gi];
+        if(Array.isArray(p[k]) && p[k].length === DEFAULTS[k].length){
+          for(var ii=0; ii<p[k].length; ii++){
+            if(!p[k][ii].cat) p[k][ii].cat = DEFAULTS[k][ii].cat || "Other";
+          }
+          out[k] = p[k];
+        }
+      }
       return out;
     } catch(e){ return JSON.parse(JSON.stringify(DEFAULTS)); }
   }
@@ -327,6 +363,8 @@
     tHtml += '<div class="it"><div><b>End of November</b><span class="d">if every line above holds</span></div><div class="v ' + (end>=0?"pos":"neg") + '"><b>' + (end>=0?"+":"\u2212") + fUSD(Math.abs(end)) + '</b></div></div>';
     $("tl").innerHTML = tHtml;
 
+    if(ACT) renderActuals();
+
     var vEl = $("verdict");
     if(end >= 0){
       vEl.innerHTML = "<b>November works as it stands.</b> You end the month " + fUSD(end) + " up. December then needs <b>" + fUSD(gap) + "</b> of new work, which is <b>" + builds + " build" + (builds===1?"":"s") + "</b>.";
@@ -334,6 +372,129 @@
       vEl.innerHTML = "<b>November is short by " + fUSD(Math.abs(end)) + ".</b> Every change up there moves this number live. The three levers: move the retreat debt into December (worth " + fUSD(debt) + "), trim the life lines, or land one more build.";
     }
   }
+
+
+  // ================= BUDGET VS ACTUAL =================
+  var ENDPOINT = "https://superagent-ccef9d3b.base44.app/functions/budgetActuals";
+  var ACT = null;
+  var CATS = ["Rent","Groceries","Eating out","Transport","Utilities","Subscriptions","Dating","Health","Business","Other"];
+
+  function catOf(it){ return it && it.cat ? it.cat : "Other"; }
+
+  function budgetByCat(){
+    var out = {};
+    var groups = ["hard","subs","life","one"];
+    for(var gi=0; gi<groups.length; gi++){
+      var g = S[groups[gi]];
+      for(var i=0;i<g.length;i++){
+        var c = catOf(g[i]);
+        out[c] = (out[c]||0) + usd(g[i].a, g[i].c);
+      }
+    }
+    return out;
+  }
+
+  function monthMeta(){
+    var today = (ACT && ACT.today) ? ACT.today : new Date().toISOString().slice(0,10);
+    var y = Number(today.slice(0,4)), m = Number(today.slice(5,7)), d = Number(today.slice(8,10));
+    var daysIn = new Date(y, m, 0).getDate();
+    return { day: d, daysIn: daysIn, left: daysIn - d + 1, label: new Date(y, m-1, 1).toLocaleString("en-CA", {month:"long"}) };
+  }
+
+  function renderActuals(){
+    var box = $("aBox"), note = $("aNote");
+    if(!box || !ACT) return;
+    var month = ACT.current_month;
+    var m = ACT.months[month] || { total_mxn:0, count:0, by_category:{}, last_date:null };
+    var meta = monthMeta();
+
+    var actBy = {}, actTotal = 0;
+    for(var c in m.by_category){
+      var v = m.by_category[c] / (S.rates.usd || 18.6);
+      actBy[c] = v; actTotal += v;
+    }
+    var budBy = budgetByCat(), budTotal = 0;
+    for(var b in budBy) budTotal += budBy[b];
+
+    var left = budTotal - actTotal;
+    var pct = budTotal > 0 ? Math.round(actTotal / budTotal * 100) : 0;
+
+    var tEl = $("aTitle");
+    if(tEl) tEl.innerHTML = meta.label + " so far";
+
+    var h = '<div class="hm">' +
+      '<div><div class="lab">Spent</div><div class="val">' + fUSD(actTotal) + '</div><div class="alt">' + fMXN(actTotal * S.rates.usd) + '</div></div>' +
+      '<div><div class="lab">Planned</div><div class="val">' + fUSD(budTotal) + '</div><div class="alt">' + fMXN(budTotal * S.rates.usd) + '</div></div>' +
+      '<div><div class="lab">' + (left >= 0 ? "Left" : "Over") + '</div><div class="val" style="color:' + (left >= 0 ? "var(--green)" : "var(--red)") + '">' + fUSD(Math.abs(left)) + '</div><div class="alt">' + pct + '% of plan</div></div>' +
+      '</div>';
+
+    var pace = budTotal / meta.daysIn;
+    var runRate = meta.day > 0 ? actTotal / meta.day : 0;
+    var paceTxt = "Day " + meta.day + " of " + meta.daysIn + ". Burning " + fUSD(runRate) + "/day against a " + fUSD(pace) + "/day plan.";
+    if(actTotal === 0){
+      paceTxt = "Day " + meta.day + " of " + meta.daysIn + ". Nothing logged yet. Send a receipt and it shows up here.";
+    } else if(runRate > pace * 1.15){
+      paceTxt += " At this rate the month lands " + fUSD(Math.max(0, runRate*meta.daysIn - budTotal)) + " over plan.";
+    } else if(runRate < pace * 0.85){
+      paceTxt += " Under pace. Keep it there.";
+    } else {
+      paceTxt += " Right on pace.";
+    }
+    h += '<div class="arow" style="background:var(--panel2);font-size:12.5px;color:var(--mut)">' + paceTxt + '</div>';
+
+    var listed = 0;
+    for(var ci=0; ci<CATS.length; ci++){
+      var cat = CATS[ci];
+      var b2 = budBy[cat] || 0, a2 = actBy[cat] || 0;
+      if(b2 === 0 && a2 === 0) continue;
+      listed++;
+      var p = b2 > 0 ? a2 / b2 : 1;
+      var w = b2 > 0 ? Math.min(100, Math.round(p*100)) : 100;
+      var cls = (b2 === 0 || p > 1) ? "over" : "";
+      var diff = b2 - a2;
+      var dTxt = b2 === 0 ? "unplanned" : (diff >= 0 ? fUSD(diff) + " left" : fUSD(-diff) + " over");
+      var pillCls = (b2 === 0 || p > 1.1) ? "bad" : (p > 0.95 ? "warn" : "ok");
+      h += '<div class="arow">' +
+        '<div class="top"><div>' + esc(cat) + '<span class="pill ' + pillCls + '">' + dTxt + '</span></div>' +
+        '<div class="nums"><b>' + fUSD(a2) + '</b> / ' + fUSD(b2) + '</div></div>' +
+        '<div class="pbar"><i class="' + cls + '" style="width:' + w + '%"></i></div>' +
+        '</div>';
+    }
+    if(!listed){
+      h += '<div class="empty">No spending logged this month yet. Drop a receipt in chat and it lands here.</div>';
+    }
+
+    box.innerHTML = h;
+
+    if(note){
+      if(m.count > 0){
+        note.style.display = "block";
+        note.innerHTML = "<b>" + m.count + " receipt" + (m.count===1?"":"s") + " logged</b> this month. Last one: " + (m.last_date || "unknown") + ". Logged total: " + fMXN(m.total_mxn) + ".";
+      } else {
+        note.style.display = "none";
+      }
+    }
+  }
+
+  function loadActuals(){
+    var box = $("aBox");
+    function fail(){
+      if(box) box.innerHTML = '<div class="empty">Logged spending is not reachable right now. The plan below still works.</div>';
+    }
+    try {
+      fetch(ENDPOINT, { method:"POST", headers:{ "Content-Type":"application/json" }, body:"{}", cache:"no-store" })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          if(d && d.ok){
+            ACT = d;
+            if(!ACT.months[ACT.current_month]) ACT.months[ACT.current_month] = { total_mxn:0, count:0, by_category:{}, last_date:null };
+            renderActuals();
+          } else { fail(); }
+        })
+        .catch(fail);
+    } catch(e){ fail(); }
+  }
+  // ================= / BUDGET VS ACTUAL =================
 
   function recalc(){ pull(); save(); draw(); }
 
@@ -383,6 +544,9 @@
   renderAll();
   draw();
   lastSig = sig();
+  loadActuals();
+  var refBtn = $("aRef");
+  if(refBtn) refBtn.addEventListener("click", function(ev){ ev.preventDefault(); ev.stopPropagation(); loadActuals(); });
 })();
 </script>
 </body>
