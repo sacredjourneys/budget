@@ -90,12 +90,27 @@
   .pill.warn{background:rgba(232,182,76,.15);color:var(--gold)}
   .pill.bad{background:rgba(226,104,95,.15);color:var(--red)}
   .ref{background:none;border:1px solid var(--line);color:var(--mut);border-radius:8px;padding:5px 10px;font-size:11.5px;margin-left:6px}
+  /* ---- breakdown / drill-down ---- */
+  .arow .top{cursor:pointer}
+  .arow .cnm{display:flex;align-items:center;flex-wrap:wrap}
+  .chev{color:var(--dim);font-size:11px;margin-left:7px}
+  .brk{border-top:1px solid var(--line);margin:9px -12px -10px;padding:6px 12px 11px;background:var(--panel2)}
+  .srow{display:flex;justify-content:space-between;gap:10px;align-items:baseline;padding:7px 0;border-bottom:1px solid var(--line);cursor:pointer}
+  .srow:last-of-type{border-bottom:0}
+  .srow .sn{font-size:13px}
+  .srow .sc{display:block;font-size:10px;color:var(--dim);margin-top:1px}
+  .srow .sv{font-size:12.5px;color:var(--mut);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+  .srow .svm{display:block;font-size:10px;color:var(--dim)}
+  .ilist{padding:2px 0 8px 10px;border-left:2px solid var(--line);margin:0 0 6px 2px}
+  .ient{display:flex;justify-content:space-between;gap:10px;font-size:11.5px;color:var(--mut);padding:3px 0;font-variant-numeric:tabular-nums}
+  .sempty{font-size:12px;color:var(--dim);padding:6px 0}
+  .sall{font-size:10.5px;color:var(--dim);padding-top:7px}
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
-    <div class="kick">Co-founder file &middot; v3</div>
+    <div class="kick">Co-founder file &middot; v5</div>
     <h1>Your money, live.</h1>
     <div class="sub">Tap any number and change it. Totals update as you type. Everything saves on your phone.</div>
     <div class="rates">
@@ -114,7 +129,7 @@
 
   <section>
     <h2 id="aTitle">This month, for real</h2>
-    <p class="hint">Your logged spending against the plan below. Send receipts any time. <button class="ref" id="aRef">Refresh</button></p>
+    <p class="hint">Your logged spending against the plan below. Tap a category to see what is inside it, then tap a line for the entries. <button class="ref" id="aRef">Refresh</button></p>
     <div class="actuals" id="aBox"><div class="empty">Loading your spending...</div></div>
     <div class="note" id="aNote" style="display:none"></div>
   </section>
@@ -175,7 +190,7 @@
 <script>
 (function(){
   "use strict";
-  var VERSION = 4;
+  var VERSION = 5;
   var KEY = "trev_budget_v3";
   var DEFAULTS = {
     rates: { usd: 18.6, cad: 13.2 },
@@ -190,10 +205,10 @@
     subs: [
       { cat:"Subscriptions", n:"Claude Pro", a:20, c:"USD" },
       { cat:"Subscriptions", n:"Base44", a:50, c:"USD" },
-      { cat:"Subscriptions", n:"Higgsfield", a:50, c:"USD" },
-      { cat:"Subscriptions", n:"Spotify", a:23, c:"CAD" },
-      { cat:"Subscriptions", n:"iCloud", a:15, c:"CAD" },
-      { cat:"Subscriptions", n:"Google Storage", a:4, c:"CAD" }
+      { cat:"Subscriptions", n:"Higgsfield", a:59, c:"USD" },
+      { cat:"Subscriptions", n:"Spotify (family)", a:26.87, c:"CAD" },
+      { cat:"Subscriptions", n:"iCloud", a:14.55, c:"CAD" },
+      { cat:"Subscriptions", n:"Google Storage", a:4.27, c:"CAD" }
     ],
     life: [
       { cat:"Eating out", n:"Eating out, gym, activities", a:200, c:"USD" },
@@ -217,6 +232,12 @@
     ]
   };
   var GROUPS = ["hard","subs","life","one","inc","goal"];
+
+  // v5: real subscription amounts from the receipts (Oct 10 - Nov 3, 2026).
+  // Only overrides numbers he never touched, so his own edits survive.
+  var MIG = 5;
+  var SUBS_OLD = { "Higgsfield":50, "Spotify":23, "Spotify (family)":23, "iCloud":15, "Google Storage":4 };
+  var SUBS_NEW = { "Higgsfield":59, "Spotify":26.87, "Spotify (family)":26.87, "iCloud":14.55, "Google Storage":4.27 };
   var S = load();
 
   function $(id){ return document.getElementById(id); }
@@ -235,6 +256,16 @@
           }
           out[k] = p[k];
         }
+      }
+      if(!p.mig || p.mig < MIG){
+        for(var si=0; si<out.subs.length; si++){
+          var nm = out.subs[si].n;
+          if(SUBS_NEW[nm] !== undefined && Number(out.subs[si].a) === SUBS_OLD[nm]){
+            out.subs[si].a = SUBS_NEW[nm];
+          }
+        }
+        if(SUBS_NEW[out.subs[3].n] && /^Spotify/.test(out.subs[3].n)) out.subs[3].n = "Spotify (family)";
+        out.mig = MIG;
       }
       return out;
     } catch(e){ return JSON.parse(JSON.stringify(DEFAULTS)); }
@@ -401,6 +432,21 @@
     return { day: d, daysIn: daysIn, left: daysIn - d + 1, label: new Date(y, m-1, 1).toLocaleString("en-CA", {month:"long"}) };
   }
 
+  var EXP = {}, EXP2 = {};
+
+  function monthItems(month, cat, sub){
+    var mo = (ACT && ACT.months) ? ACT.months[month] : null;
+    if(!mo || !mo.items) return [];
+    var out = [];
+    for(var i=0;i<mo.items.length;i++){
+      var it = mo.items[i];
+      if(it.c !== cat) continue;
+      if(sub && it.s !== sub) continue;
+      out.push(it);
+    }
+    return out;
+  }
+
   function renderActuals(){
     var box = $("aBox"), note = $("aNote");
     if(!box || !ACT) return;
@@ -454,11 +500,60 @@
       var diff = b2 - a2;
       var dTxt = b2 === 0 ? "unplanned" : (diff >= 0 ? fUSD(diff) + " left" : fUSD(-diff) + " over");
       var pillCls = (b2 === 0 || p > 1.1) ? "bad" : (p > 0.95 ? "warn" : "ok");
+      var open = !!EXP[cat];
+      var nItems = monthItems(month, cat).length;
+
       h += '<div class="arow">' +
-        '<div class="top"><div>' + esc(cat) + '<span class="pill ' + pillCls + '">' + dTxt + '</span></div>' +
-        '<div class="nums"><b>' + fUSD(a2) + '</b> / ' + fUSD(b2) + '</div></div>' +
-        '<div class="pbar"><i class="' + cls + '" style="width:' + w + '%"></i></div>' +
-        '</div>';
+        '<div class="top" data-cat="' + esc(cat) + '">' +
+          '<div class="cnm">' + esc(cat) + '<span class="pill ' + pillCls + '">' + dTxt + '</span><span class="chev">' + (open ? "\u25be" : "\u25b8") + '</span></div>' +
+          '<div class="nums"><b>' + fUSD(a2) + '</b> / ' + fUSD(b2) + '</div>' +
+        '</div>' +
+        '<div class="pbar" data-cat="' + esc(cat) + '"><i class="' + cls + '" style="width:' + w + '%"></i></div>';
+
+      if(open){
+        var subs = null;
+        if(m.by_sub && m.by_sub[cat]) subs = m.by_sub[cat];
+        var arr = [];
+        if(subs){
+          for(var sn in subs) arr.push({ n: sn, raw: subs[sn] });
+        } else {
+          var its0 = monthItems(month, cat), agg = {};
+          for(var q=0;q<its0.length;q++){ var kk = its0[q].s || "Unlabelled"; agg[kk] = (agg[kk]||0) + its0[q].mxn; }
+          for(var k2 in agg) arr.push({ n: k2, raw: agg[k2] });
+        }
+        for(var ai=0; ai<arr.length; ai++) arr[ai].v = arr[ai].raw / (S.rates.usd || 18.6);
+        arr.sort(function(x,y){ return y.v - x.v; });
+
+        if(!arr.length){
+          h += '<div class="brk"><div class="sempty">Nothing logged here this month.</div></div>';
+        } else {
+          h += '<div class="brk">';
+          for(var si2=0; si2<arr.length; si2++){
+            var sr = arr[si2];
+            var key2 = cat + "|" + sr.n;
+            var open2 = !!EXP2[key2];
+            var rows2 = monthItems(month, cat, sr.n);
+            h += '<div class="srow" data-cat="' + esc(cat) + '" data-sub="' + esc(sr.n) + '">' +
+                 '<div class="sn">' + esc(sr.n) + (rows2.length ? '<span class="sc">' + rows2.length + (rows2.length === 1 ? " entry" : " entries") + '</span>' : '') + '</div>' +
+                 '<div class="sv">' + fUSD(sr.v) + '<span class="svm">' + fMXN(sr.raw) + '</span></div>' +
+                 '</div>';
+            if(open2 && rows2.length){
+              h += '<div class="ilist">';
+              for(var ii=0; ii<rows2.length; ii++){
+                var e2 = rows2[ii];
+                var origTxt = "";
+                if(e2.cur && e2.cur !== "MXN"){
+                  origTxt = (e2.cur === "USD" ? "$" : "C$") + Number(e2.amt).toFixed(2) + " = ";
+                }
+                h += '<div class="ient"><span>' + esc(String(e2.d).slice(5)) + '</span><span>' + esc(origTxt) + fMXN(e2.mxn) + '</span></div>';
+              }
+              h += '</div>';
+            }
+          }
+          h += '<div class="sall">Tap any line for the dates behind it.</div></div>';
+        }
+      }
+      h += '</div>';
     }
     if(!listed){
       h += '<div class="empty">No spending logged this month yet. Drop a receipt in chat and it lands here.</div>';
@@ -469,7 +564,7 @@
     if(note){
       if(m.count > 0){
         note.style.display = "block";
-        note.innerHTML = "<b>" + m.count + " receipt" + (m.count===1?"":"s") + " logged</b> this month. Last one: " + (m.last_date || "unknown") + ". Logged total: " + fMXN(m.total_mxn) + ".";
+        note.innerHTML = "<b>" + m.count + " entr" + (m.count===1?"y":"ies") + " logged</b> this month. Last one: " + (m.last_date || "unknown") + ". Logged total: " + fMXN(m.total_mxn) + ".";
       } else {
         note.style.display = "none";
       }
@@ -545,6 +640,27 @@
   draw();
   lastSig = sig();
   loadActuals();
+
+  var aBoxEl = $("aBox");
+  if(aBoxEl) aBoxEl.addEventListener("click", function(ev){
+    var t = ev.target;
+    while(t && t !== this && !(t.getAttribute && (t.getAttribute("data-cat") || t.getAttribute("data-sub")))) t = t.parentNode;
+    if(!t || t === this || !t.getAttribute) return;
+    var cat = t.getAttribute("data-cat");
+    var sub = t.getAttribute("data-sub");
+    if(!cat) return;
+    if(sub){
+      var k = cat + "|" + sub;
+      EXP2[k] = !EXP2[k];
+    } else {
+      EXP[cat] = !EXP[cat];
+      if(!EXP[cat]){ for(var kx in EXP2){ if(kx.indexOf(cat + "|") === 0) delete EXP2[kx]; } }
+    }
+    ev.preventDefault();
+    ev.stopPropagation();
+    renderActuals();
+  }, false);
+
   var refBtn = $("aRef");
   if(refBtn) refBtn.addEventListener("click", function(ev){ ev.preventDefault(); ev.stopPropagation(); loadActuals(); });
 })();
