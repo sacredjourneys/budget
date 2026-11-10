@@ -110,7 +110,7 @@
 <body>
 <div class="wrap">
   <header>
-    <div class="kick">Co-founder file &middot; v5</div>
+    <div class="kick">Co-founder file &middot; v6</div>
     <h1>Your money, live.</h1>
     <div class="sub">Tap any number and change it. Totals update as you type. Everything saves on your phone.</div>
     <div class="rates">
@@ -155,7 +155,7 @@
 
   <section>
     <h2>Life</h2>
-    <p class="hint">Food out, gym, Samira, the moto.</p>
+    <p class="hint">Food out, gym, Samira, the moto, the cat.</p>
     <div class="grp" id="gLife"></div>
   </section>
 
@@ -190,7 +190,7 @@
 <script>
 (function(){
   "use strict";
-  var VERSION = 5;
+  var VERSION = 6;
   var KEY = "trev_budget_v3";
   var DEFAULTS = {
     rates: { usd: 18.6, cad: 13.2 },
@@ -213,7 +213,8 @@
     life: [
       { cat:"Eating out", n:"Eating out, gym, activities", a:200, c:"USD" },
       { cat:"Dating", n:"Samira (dates, mountain gas)", a:500, c:"USD" },
-      { cat:"Transport", n:"Moto maintenance", a:400, c:"MXN" }
+      { cat:"Transport", n:"Moto maintenance", a:400, c:"MXN" },
+      { cat:"Pets", n:"Cat (food, litter, vet)", a:800, c:"MXN" }
     ],
     one: [
       { cat:"Transport", n:"Moto battery", a:1000, c:"MXN" },
@@ -250,11 +251,14 @@
       if(p.rates){ out.rates.usd = Number(p.rates.usd) || DEFAULTS.rates.usd; out.rates.cad = Number(p.rates.cad) || DEFAULTS.rates.cad; }
       for(var gi=0; gi<GROUPS.length; gi++){
         var k = GROUPS[gi];
-        if(Array.isArray(p[k]) && p[k].length === DEFAULTS[k].length){
-          for(var ii=0; ii<p[k].length; ii++){
-            if(!p[k][ii].cat) p[k][ii].cat = DEFAULTS[k][ii].cat || "Other";
+        if(Array.isArray(p[k])){
+          for(var ii=0; ii<p[k].length && ii<out[k].length; ii++){
+            if(p[k][ii]){
+              out[k][ii] = p[k][ii];
+              if(!out[k][ii].cat) out[k][ii].cat = DEFAULTS[k][ii].cat || "Other";
+            }
           }
-          out[k] = p[k];
+          // any lines added to DEFAULTS since his last visit stay at their new values
         }
       }
       if(!p.mig || p.mig < MIG){
@@ -408,7 +412,7 @@
   // ================= BUDGET VS ACTUAL =================
   var ENDPOINT = "https://superagent-ccef9d3b.base44.app/functions/budgetActuals";
   var ACT = null;
-  var CATS = ["Rent","Groceries","Eating out","Transport","Utilities","Subscriptions","Dating","Health","Business","Other"];
+  var CATS = ["Rent","Groceries","Eating out","Transport","Utilities","Subscriptions","Dating","Health","Pets","Business","Other"];
 
   function catOf(it){ return it && it.cat ? it.cat : "Other"; }
 
