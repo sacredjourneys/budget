@@ -110,7 +110,7 @@
 <body>
 <div class="wrap">
   <header>
-    <div class="kick">Co-founder file &middot; v6</div>
+    <div class="kick">Co-founder file &middot; v7</div>
     <h1>Your money, live.</h1>
     <div class="sub">Tap any number and change it. Totals update as you type. Everything saves on your phone.</div>
     <div class="rates">
@@ -190,7 +190,7 @@
 <script>
 (function(){
   "use strict";
-  var VERSION = 6;
+  var VERSION = 7;
   var KEY = "trev_budget_v3";
   var DEFAULTS = {
     rates: { usd: 18.6, cad: 13.2 },
@@ -223,7 +223,8 @@
     inc: [
       { n:"Website contract (dad's cabinets)", a:1800, c:"CAD", rec:false },
       { n:"Website maintenance", a:130, c:"CAD", rec:true },
-      { n:"Retreat profit (end Nov)", a:2000, c:"USD", rec:false }
+      { n:"Retreat profit (end Nov)", a:2000, c:"USD", rec:false },
+      { n:"Car rented to a friend (Nov)", a:1500, c:"MXN", rec:false }
     ],
     goal: [
       { n:"Monthly income target", a:3000, c:"USD" },
@@ -384,6 +385,12 @@
     rowsT.push({ d:"Today", t:"Cash on hand", v:cash, pos:true });
     rowsT.push({ d:"Nov 1", t:"Rent due", v:-rent, pos:false });
     if(contract) rowsT.push({ d:"Early Nov", t:"Website contract lands", v:usd(contract.a,contract.c), pos:true });
+    for(var q3=0;q3<S.inc.length;q3++){
+      var inc3 = S.inc[q3];
+      if(inc3.rec || inc3 === contract || inc3 === retreat) continue;
+      if(!(usd(inc3.a, inc3.c) > 0)) continue;
+      rowsT.push({ d:"This month", t:inc3.n, v:usd(inc3.a,inc3.c), pos:true });
+    }
     rowsT.push({ d:"All Nov", t:"Rest of the month (food, utilities, transport, life, subs)", v:-(burn - rent), pos:false });
     rowsT.push({ d:"All Nov", t:"One-offs (battery, oil)", v:-sumGroup("one"), pos:false });
     if(retreat) rowsT.push({ d:"End Nov", t:"Retreat profit lands", v:usd(retreat.a,retreat.c), pos:true });
