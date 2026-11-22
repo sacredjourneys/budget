@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e0e10">
+<title>Retreat log</title>
+<style>
+  :root{
+    --bg:#0e0e10; --panel:#17171a; --panel2:#1e1e22; --line:#2a2a30;
+    --txt:#f2f0ec; --mut:#9a978f; --dim:#6d6a63;
+    --gold:#e8b64c; --green:#5fbf82; --red:#e2685f; --blue:#6ea8d8;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:15px;line-height:1.45; -webkit-text-size-adjust:100%}
+  .wrap{max-width:700px;margin:0 auto;padding:20px 16px 70px}
+  header{padding:6px 0 14px}
+  .kick{color:var(--gold);font-size:11px;letter-spacing:.18em;text-transform:uppercase;font-weight:700}
+  h1{font-size:26px;line-height:1.15;margin:6px 0 4px;letter-spacing:-.02em}
+  .sub{color:var(--mut);font-size:13px}
+  .tiles{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:var(--line);
+    border:1px solid var(--line);border-radius:14px;overflow:hidden;margin:18px 0 6px}
+  .tiles>div{background:var(--panel);padding:12px 11px}
+  .lab{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);font-weight:700}
+  .val{font-size:19px;font-weight:700;margin-top:5px;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  .alt{font-size:10.5px;color:var(--mut);margin-top:1px;font-variant-numeric:tabular-nums}
+  .val.gold{color:var(--gold)} .val.blue{color:var(--blue)}
+  section{margin-top:24px}
+  h2{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--gold);margin:0 0 8px;font-weight:800}
+  .hint{color:var(--dim);font-size:12px;margin:0 0 10px}
+  .box{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .arow{padding:11px 12px;border-top:1px solid var(--line)}
+  .arow:first-child{border-top:0}
+  .top{display:flex;justify-content:space-between;gap:10px;align-items:baseline;font-size:14px;cursor:pointer}
+  .nums{font-variant-numeric:tabular-nums;color:var(--mut);font-size:12.5px;white-space:nowrap}
+  .nums b{color:var(--txt)}
+  .chev{color:var(--dim);font-size:11px;margin-left:7px}
+  .pbar{height:6px;border-radius:99px;background:var(--panel2);overflow:hidden;margin-top:7px}
+  .pbar i{display:block;height:100%;background:var(--gold)}
+  .ilist{margin:9px -12px -11px;padding:4px 12px 9px;background:var(--panel2);border-top:1px solid var(--line)}
+  .ient{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;color:var(--mut);padding:6px 0;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+  .ient:last-child{border-bottom:0}
+  .ient .d{color:var(--dim);font-size:11px;white-space:nowrap;margin-right:8px}
+  .ient .n{flex:1}
+  .empty{color:var(--dim);font-size:13px;padding:18px 14px;line-height:1.55}
+  .note{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--gold);
+    border-radius:10px;padding:12px 14px;font-size:12.5px;color:var(--mut);margin-top:14px}
+  .note b{color:var(--txt)}
+  footer{margin-top:26px;color:var(--dim);font-size:11.5px;text-align:center;line-height:1.7}
+  footer a{color:var(--mut);text-decoration:none;border-bottom:1px solid var(--line)}
+  .ref{background:none;border:1px solid var(--line);color:var(--mut);border-radius:8px;padding:5px 10px;font-size:11.5px;margin-left:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="kick">Sacred Journeys &middot; separate log</div>
+    <h1>Retreat spending.</h1>
+    <div class="sub">Every peso going out for the retreat. Kept apart from your personal budget.</div>
+  </header>
+
+  <div class="tiles">
+    <div><div class="lab">Total out</div><div class="val gold" id="tTotal">MX$0</div><div class="alt" id="tTotalUsd">$0</div></div>
+    <div><div class="lab">Entries</div><div class="val" id="tCount">0</div><div class="alt" id="tLast">none yet</div></div>
+    <div><div class="lab">Biggest</div><div class="val blue" id="tTop">-</div><div class="alt" id="tTopVal">-</div></div>
+  </div>
+
+  <section>
+    <h2 id="secTitle">By category</h2>
+    <p class="hint">Tap a category to see the individual buys. <button class="ref" id="refresh">Refresh</button></p>
+    <div class="box" id="box"><div class="empty">Loading...</div></div>
+    <div class="note" id="note" style="display:none"></div>
+  </section>
+
+  <footer>
+    Retreat expenses only. Personal spending stays on <a href="../">the budget page</a>.<br>
+    Vendor names and notes stay private. Item, date and amount show here.
+  </footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var ENDPOINT = "https://superagent-ccef9d3b.base44.app/functions/retreatActuals";
+  var USD = 18.6;
+  var OPEN = {};
+  var DATA = null;
+
+  function $(id){ return document.getElementById(id); }
+  function esc(x){ return String(x).replace(/[&<>"]/g, function(c){ return ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[c]; }); }
+  function fMXN(v){ return "MX$" + Math.round(Number(v)||0).toLocaleString("en-CA"); }
+  function fUSD(v){ return "$" + Math.round(Number(v)||0).toLocaleString("en-CA"); }
+
+  function current(){
+    if(!DATA || !DATA.retreats) return null;
+    var keys = Object.keys(DATA.retreats);
+    if(!keys.length) return null;
+    keys.sort();
+    return { key: keys[keys.length - 1], t: DATA.retreats[keys[keys.length - 1]] };
+  }
+
+  function render(){
+    var box = $("box"), note = $("note");
+    var cur = current();
+    if(!cur){
+      $("tTotal").textContent = "MX$0";
+      $("tTotalUsd").textContent = "$0";
+      $("tCount").textContent = "0";
+      $("tLast").textContent = "none yet";
+      $("tTop").textContent = "-";
+      $("tTopVal").textContent = "-";
+      box.innerHTML = '<div class="empty">Nothing logged yet. Send a receipt or a note in the chat and it lands here, with the item, the date and the amount.</div>';
+      note.style.display = "none";
+      return;
+    }
+
+    var t = cur.t;
+    $("tTotal").textContent = fMXN(t.total_mxn);
+    $("tTotalUsd").textContent = fUSD(t.total_mxn / USD);
+    $("tCount").textContent = String(t.count);
+    $("tLast").textContent = t.last_date ? "last " + t.last_date.slice(5) : "";
+
+    var cats = [];
+    for(var c in t.by_category) cats.push({ n: c, v: t.by_category[c] });
+    cats.sort(function(a,b){ return b.v - a.v; });
+    if(cats.length){
+      $("tTop").textContent = cats[0].n.split(" ")[0];
+      $("tTopVal").textContent = fMXN(cats[0].v);
+    }
+
+    var h = "";
+    for(var i=0;i<cats.length;i++){
+      var cat = cats[i];
+      var pct = t.total_mxn > 0 ? Math.round(cat.v / t.total_mxn * 100) : 0;
+      var open = !!OPEN[cat.n];
+      var mine = [];
+      for(var j=0;j<t.items.length;j++){ if(t.items[j].c === cat.n) mine.push(t.items[j]); }
+      h += '<div class="arow">' +
+        '<div class="top" data-cat="' + esc(cat.n) + '">' +
+          '<div>' + esc(cat.n) + '<span class="chev">' + (open ? "\u25be" : "\u25b8") + '</span></div>' +
+          '<div class="nums"><b>' + fMXN(cat.v) + '</b> &middot; ' + mine.length + (mine.length===1?" entry":" entries") + '</div>' +
+        '</div>' +
+        '<div class="pbar"><i style="width:' + Math.min(100, pct) + '%"></i></div>';
+      if(open){
+        h += '<div class="ilist">';
+        for(var k=0;k<mine.length;k++){
+          var e = mine[k];
+          var orig = (e.cur && e.cur !== "MXN") ? (e.cur === "USD" ? "$" : "C$") + Number(e.amt).toFixed(2) + " = " : "";
+          h += '<div class="ient"><span class="d">' + esc(String(e.d).slice(5)) + '</span>' +
+               '<span class="n">' + esc(e.i) + '</span>' +
+               '<span>' + esc(orig) + fMXN(e.mxn) + '</span></div>';
+        }
+        h += '</div>';
+      }
+      h += '</div>';
+    }
+    box.innerHTML = h;
+
+    note.style.display = "block";
+    note.innerHTML = "<b>" + t.count + " entr" + (t.count===1?"y":"ies") + " logged</b> for " + esc(cur.key) +
+      ". Average " + fMXN(t.total_mxn / t.count) + " per entry. Total out so far: " + fMXN(t.total_mxn) + ".";
+  }
+
+  function load(){
+    var box = $("box");
+    try {
+      fetch(ENDPOINT, { method:"POST", headers:{ "Content-Type":"application/json" }, body:"{}", cache:"no-store" })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          if(d && d.ok){ DATA = d; render(); }
+          else { box.innerHTML = '<div class="empty">The log is not reachable right now. Try refresh in a moment.</div>'; }
+        })
+        .catch(function(){ box.innerHTML = '<div class="empty">The log is not reachable right now. Try refresh in a moment.</div>'; });
+    } catch(e){
+      box.innerHTML = '<div class="empty">The log is not reachable right now. Try refresh in a moment.</div>';
+    }
+  }
+
+  var boxEl = $("box");
+  boxEl.addEventListener("click", function(ev){
+    var t = ev.target;
+    while(t && t !== this && !(t.getAttribute && t.getAttribute("data-cat"))) t = t.parentNode;
+    if(!t || t === this || !t.getAttribute) return;
+    var cat = t.getAttribute("data-cat");
+    if(!cat) return;
+    OPEN[cat] = !OPEN[cat];
+    ev.preventDefault();
+    render();
+  }, false);
+
+  var r = $("refresh");
+  if(r) r.addEventListener("click", function(ev){ ev.preventDefault(); load(); });
+
+  window.addEventListener("error", function(e){
+    var b = $("box");
+    if(b) b.innerHTML = '<div class="empty">Script error: ' + esc(e.message || "unknown") + '</div>';
+  });
+
+  load();
+})();
+</script>
+</body>
+</html>
